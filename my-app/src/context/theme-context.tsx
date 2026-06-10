@@ -4,10 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/theme';
 import { ThemeMode } from '@/constants/types';
 
+
 interface ThemeContextType {
   themeMode: ThemeMode;
   toggleTheme: () => void;
-  colors: typeof Colors.light;
+  colors: typeof Colors.light | typeof Colors.dark;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
