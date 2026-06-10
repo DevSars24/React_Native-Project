@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -6,122 +6,202 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type Product = {
-  id: string;
-  name: string;
-  price: string;
-  emoji: string;
-};
-
-type SearchBarProps = {
-  searchText: string;
-  onSearchChange: (text: string) => void;
-};
-
-type CartCounterProps = {
-  count: number;
-  onAddItem: () => void;
-};
-
-type ProductCardProps = {
-  product: Product;
-  onAddItem: () => void;
-};
-
-const products: Product[] = [
-  { id: '1', name: 'Fresh Apples', price: 'Rs. 120/kg', emoji: 'A' },
-  { id: '2', name: 'Milk Pack', price: 'Rs. 64', emoji: 'M' },
-  { id: '3', name: 'Brown Bread', price: 'Rs. 45', emoji: 'B' },
-  { id: '4', name: 'Potato Chips', price: 'Rs. 30', emoji: 'C' },
-  { id: '5', name: 'Green Tea', price: 'Rs. 180', emoji: 'T' },
-  { id: '6', name: 'Instant Noodles', price: 'Rs. 55', emoji: 'N' },
-];
-
-function SearchBar({ searchText, onSearchChange }: SearchBarProps) {
-  return (
-    <View style={styles.searchBox}>
-      <Text style={styles.searchIcon}>Search</Text>
-      <TextInput
-        value={searchText}
-        onChangeText={onSearchChange}
-        placeholder="Search groceries..."
-        placeholderTextColor="#77838f"
-        style={styles.searchInput}
-      />
-    </View>
-  );
-}
-
-function CartCounter({ count, onAddItem }: CartCounterProps) {
-  return (
-    <View style={styles.cartCard}>
-      <View>
-        <Text style={styles.cartLabel}>Cart Items</Text>
-        <Text style={styles.cartCount}>{count}</Text>
-      </View>
-
-      <TouchableOpacity style={styles.cartButton} onPress={onAddItem}>
-        <Text style={styles.cartButtonText}>+ Add Item</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function ProductCard({ product, onAddItem }: ProductCardProps) {
-  return (
-    <View style={styles.productCard}>
-      <View style={styles.productAvatar}>
-        <Text style={styles.productAvatarText}>{product.emoji}</Text>
-      </View>
-
-      <View style={styles.productInfo}>
-        <Text style={styles.productName}>{product.name}</Text>
-        <Text style={styles.productPrice}>{product.price}</Text>
-      </View>
-
-      <TouchableOpacity style={styles.addButton} onPress={onAddItem}>
-        <Text style={styles.addButtonText}>Add</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
+import { Product } from '@/constants/types';
+import { useTheme } from '@/hooks/use-theme';
+import { fetchProductsFromAPI } from '@/services/api';
+import { ProductCard } from '@/components/product-card';
+import { SkeletonLoader } from '@/components/skeleton-loader';
+import { OfflineBanner } from '@/components/offline-banner';
+import { FilterModal, FilterState } from '@/components/filter-modal';
+import { useToast } from '@/context/toast-context';
 
 export default function ZapMartScreen() {
+  const theme = useTheme();
+  const { showToast } = useToast();
+
+  const [products, setProducts] = useState<Product[]>([]);
   const [searchText, setSearchText] = useState('');
-  const [cartCount, setCartCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchText.toLowerCase()),
-  );
+  // Filter Modal visibility
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
 
-  function handleAddItem() {
-    setCartCount(cartCount + 1);
-  }
+  // Filters State
+  const [filters, setFilters] = useState<FilterState>({
+    category: 'All',
+    minPrice: 0,
+    maxPrice: 1000,
+    rating: 0,
+    sortBy: 'newest',
+  });
+
+  const loadProducts = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchProductsFromAPI();
+      setProducts(data);
+      setIsOffline(false);
+
+      // Cache products
+      const now = new Date().toISOString();
+      await AsyncStorage.setItem('@zapmart_products_cache', JSON.stringify(data));
+      await AsyncStorage.setItem('@zapmart_products_cache_timestamp', now);
+      setLastUpdated(now);
+    } catch (e) {
+      setIsOffline(true);
+      showToast('Network error. Loaded offline cache.', 'warning');
+      
+      // Load from cache
+      try {
+        const cachedProducts = await AsyncStorage.getItem('@zapmart_products_cache');
+        const cachedTime = await AsyncStorage.getItem('@zapmart_products_cache_timestamp');
+        if (cachedProducts) {
+          setProducts(JSON.parse(cachedProducts));
+        }
+        if (cachedTime) {
+          setLastUpdated(cachedTime);
+        }
+      } catch (cacheErr) {
+        console.error('Failed to load products from cache', cacheErr);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  // Process search, filters, and sorting using useMemo
+  const processedProducts = useMemo(() => {
+    let list = [...products];
+
+    // 1. Search Name
+    if (searchText.trim() !== '') {
+      list = list.filter((p) =>
+        p.name.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+
+    // 2. Filter Category
+    if (filters.category !== 'All') {
+      list = list.filter((p) => p.category === filters.category);
+    }
+
+    // 3. Filter Price Range
+    list = list.filter(
+      (p) => p.price >= filters.minPrice && p.price <= filters.maxPrice
+    );
+
+    // 4. Filter Rating
+    if (filters.rating > 0) {
+      list = list.filter((p) => p.rating >= filters.rating);
+    }
+
+    // 5. Sorting
+    if (filters.sortBy === 'price-asc') {
+      list.sort((a, b) => a.price - b.price);
+    } else if (filters.sortBy === 'price-desc') {
+      list.sort((a, b) => b.price - a.price);
+    } else if (filters.sortBy === 'rating') {
+      list.sort((a, b) => b.rating - a.rating);
+    } else if (filters.sortBy === 'newest') {
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
+    return list;
+  }, [products, searchText, filters]);
+
+  const handleApplyFilters = (newFilters: FilterState) => {
+    setFilters(newFilters);
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      {/* Connection Banner */}
+      <OfflineBanner 
+        isOffline={isOffline} 
+        lastUpdated={lastUpdated} 
+        onRetry={loadProducts} 
+      />
+
       <View style={styles.header}>
-        <Text style={styles.brand}>ZapMart</Text>
-        <Text style={styles.subtitle}>Quick groceries, faster cart practice.</Text>
+        <View>
+          <Text style={[styles.brand, { color: theme.text }]}>ZapMart</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            High-speed grocery shopping, delivered fresh.
+          </Text>
+        </View>
       </View>
 
-      <SearchBar searchText={searchText} onSearchChange={setSearchText} />
-      <CartCounter count={cartCount} onAddItem={handleAddItem} />
+      {/* Search Bar & Filter Button */}
+      <View style={styles.searchRow}>
+        <View style={[styles.searchBox, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholder="Search groceries..."
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.searchInput, { color: theme.text }]}
+          />
+        </View>
 
-      <Text style={styles.sectionTitle}>Products</Text>
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ProductCard product={item} onAddItem={handleAddItem} />
+        <TouchableOpacity 
+          style={[styles.filterBtn, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}
+          onPress={() => setFilterModalVisible(true)}
+        >
+          <Text style={styles.filterBtnText}>⚙️</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+          {filters.category === 'All' ? 'All Products' : filters.category}
+        </Text>
+        {processedProducts.length > 0 && (
+          <Text style={[styles.productCount, { color: theme.textSecondary }]}>
+            {processedProducts.length} items
+          </Text>
         )}
-        contentContainerStyle={styles.productList}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No products found. Try another search.</Text>
-        }
+      </View>
+
+      {/* Product List */}
+      {loading ? (
+        <SkeletonLoader />
+      ) : (
+        <FlatList
+          data={processedProducts}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <ProductCard product={item} index={index} />
+          )}
+          contentContainerStyle={styles.productList}
+          initialNumToRender={6}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              No products found. Adjust filters or search query.
+            </Text>
+          }
+        />
+      )}
+
+      {/* Filter modal */}
+      <FilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={handleApplyFilters}
+        currentFilters={filters}
       />
     </SafeAreaView>
   );
@@ -130,141 +210,83 @@ export default function ZapMartScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f7faf9',
-    paddingHorizontal: 20,
-    paddingTop: 18,
   },
   header: {
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   brand: {
-    color: '#14213d',
     fontSize: 34,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#52616b',
-    fontSize: 15,
-    marginTop: 6,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 16,
   },
   searchBox: {
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#dbe7e4',
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: 8,
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
   },
   searchIcon: {
-    color: '#168f6d',
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+    fontSize: 16,
   },
   searchInput: {
-    color: '#1f2933',
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     padding: 0,
+    fontWeight: '600',
   },
-  cartCard: {
+  filterBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#113f67',
-    borderRadius: 8,
+  },
+  filterBtnText: {
+    fontSize: 20,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 22,
-    padding: 18,
-  },
-  cartLabel: {
-    color: '#b9d7ea',
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  cartCount: {
-    color: '#ffffff',
-    fontSize: 38,
-    fontWeight: '900',
-    lineHeight: 42,
-    marginTop: 4,
-  },
-  cartButton: {
-    backgroundColor: '#f9a826',
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-  },
-  cartButtonText: {
-    color: '#1b1b1b',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  sectionTitle: {
-    color: '#14213d',
-    fontSize: 20,
-    fontWeight: '800',
+    alignItems: 'center',
+    paddingHorizontal: 20,
     marginBottom: 10,
   },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  productCount: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
   productList: {
-    gap: 10,
-    paddingBottom: 24,
-  },
-  productCard: {
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#e3ece9',
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    padding: 14,
-  },
-  productAvatar: {
-    alignItems: 'center',
-    backgroundColor: '#dff6f0',
-    borderRadius: 8,
-    height: 46,
-    justifyContent: 'center',
-    marginRight: 12,
-    width: 46,
-  },
-  productAvatarText: {
-    color: '#168f6d',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  productInfo: {
-    flex: 1,
-  },
-  productName: {
-    color: '#1f2933',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  productPrice: {
-    color: '#687782',
-    fontSize: 14,
-    marginTop: 3,
-  },
-  addButton: {
-    backgroundColor: '#168f6d',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  addButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '800',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 100, // Leave room for absolute web tab triggers
   },
   emptyText: {
-    color: '#687782',
     fontSize: 15,
-    paddingVertical: 24,
+    paddingVertical: 32,
     textAlign: 'center',
+    fontWeight: '600',
   },
 });
