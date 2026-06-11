@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -43,7 +43,7 @@ export default function ProfileScreen() {
     loadOfflineStatus();
   }, []);
 
-  const handleToggleOffline = async (value: boolean) => {
+  const handleToggleOffline = useCallback(async (value: boolean) => {
     setSimulatedOffline(value);
     await AsyncStorage.setItem('@zapmart_simulated_offline', value ? 'true' : 'false');
     showToast(
@@ -52,9 +52,9 @@ export default function ProfileScreen() {
         : 'Network connection restored.', 
       value ? 'warning' : 'success'
     );
-  };
+  }, [showToast]);
 
-  const handleToggleNotifications = async (value: boolean) => {
+  const handleToggleNotifications = useCallback(async (value: boolean) => {
     try {
       await updateProfile({ notificationsEnabled: value });
       showToast(
@@ -64,9 +64,9 @@ export default function ProfileScreen() {
     } catch (e) {
       showToast('Failed to update settings', 'error');
     }
-  };
+  }, [updateProfile, showToast]);
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = useCallback(async () => {
     if (!nameInput.trim() || !emailInput.trim()) {
       showToast('Name and Email are required', 'error');
       return;
@@ -83,7 +83,7 @@ export default function ProfileScreen() {
     } catch (e) {
       showToast('Failed to save profile details.', 'error');
     }
-  };
+  }, [nameInput, emailInput, phoneInput, updateProfile, showToast]);
 
   const initials = user?.name
     ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase()

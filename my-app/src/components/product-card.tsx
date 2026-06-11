@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
 import Animated, { 
   FadeInDown, 
@@ -12,7 +12,7 @@ import { useWishlist } from '@/context/wishlist-context';
 import { useCart } from '@/context/cart-context';
 import { useToast } from '@/context/toast-context';
 
-export function ProductCard({ product, index }: { product: Product; index: number }) {
+export const ProductCard = memo(function ProductCard({ product, index }: { product: Product; index: number }) {
   const theme = useTheme();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { addToCart } = useCart();
@@ -107,7 +107,7 @@ export function ProductCard({ product, index }: { product: Product; index: numbe
       </View>
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

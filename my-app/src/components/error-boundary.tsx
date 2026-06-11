@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform } from 'react-native';
+import { useTheme } from '@/hooks/use-theme';
 
 interface Props {
   children: ReactNode;
@@ -8,6 +9,29 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+}
+
+function CrashScreen({ error, onReset }: { error: Error | null; onReset: () => void }) {
+  const theme = useTheme();
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
+        <Text style={styles.icon}>⚠️</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Oops! Something went wrong.</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          An unexpected crash occurred. The app will recover when you go back or reload.
+        </Text>
+        {error && (
+          <Text style={[styles.errorText, { backgroundColor: theme.backgroundSelected, color: '#e63946' }]} numberOfLines={3}>
+            {error.toString()}
+          </Text>
+        )}
+        <TouchableOpacity style={[styles.button, { backgroundColor: '#168f6d' }]} onPress={onReset}>
+          <Text style={styles.btnText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -30,25 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      return (
-        <SafeAreaView style={styles.container}>
-          <View style={styles.card}>
-            <Text style={styles.icon}>⚠️</Text>
-            <Text style={styles.title}>Oops! Something went wrong.</Text>
-            <Text style={styles.subtitle}>
-              An unexpected crash occurred. The app will recover when you go back or reload.
-            </Text>
-            {this.state.error && (
-              <Text style={styles.errorText} numberOfLines={3}>
-                {this.state.error.toString()}
-              </Text>
-            )}
-            <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-              <Text style={styles.btnText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      );
+      return <CrashScreen error={this.state.error} onReset={this.handleReset} />;
     }
 
     return this.props.children;

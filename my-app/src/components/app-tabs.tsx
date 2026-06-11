@@ -1,13 +1,12 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
+import { useMemo } from 'react';
 
-import { Colors } from '@/constants/theme';
 import { useCart } from '@/context/cart-context';
 import { useWishlist } from '@/context/wishlist-context';
+import { useAppTheme } from '@/context/theme-context';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const { colors } = useAppTheme();
   
   const { totals } = useCart();
   const { state: wishlistState } = useWishlist();
@@ -15,11 +14,13 @@ export default function AppTabs() {
   const cartCount = totals.itemCount;
   const wishlistCount = wishlistState.items.length;
 
+  const labelStyle = useMemo(() => ({ selected: { color: colors.text } }), [colors.text]);
+
   return (
     <NativeTabs
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
+      labelStyle={labelStyle}>
       
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>

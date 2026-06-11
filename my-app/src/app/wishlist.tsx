@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -20,6 +20,10 @@ export default function WishlistScreen() {
   const { state: wishlistState } = useWishlist();
   
   const wishlistItems = wishlistState.items;
+  
+  const renderWishlistItem = useCallback(({ item, index }: { item: any; index: number }) => (
+    <ProductCard product={item} index={index} />
+  ), []);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -50,9 +54,7 @@ export default function WishlistScreen() {
         <FlatList
           data={wishlistItems}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <ProductCard product={item} index={index} />
-          )}
+          renderItem={renderWishlistItem}
           contentContainerStyle={styles.listContainer}
           initialNumToRender={6}
           maxToRenderPerBatch={10}

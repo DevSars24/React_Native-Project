@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useReducer } from 'react';
+import React, { createContext, useContext, useEffect, useReducer, useRef, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product, WishlistAction, WishlistState } from '@/constants/types';
 
@@ -36,6 +36,7 @@ function wishlistReducer(state: WishlistState, action: WishlistAction): Wishlist
 
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(wishlistReducer, initialState);
+  const isInitiated = useRef(false);
 
   // Load wishlist from AsyncStorage on launch
   useEffect(() => {
@@ -47,37 +48,38 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         console.error('Failed to load wishlist state', e);
+      } finally {
+        isInitiated.current = true;
       }
     }
     loadWishlist();
   }, []);
 
-  const saveWishlist = async (items: Product[]) => {
-    try {
-      await AsyncStorage.setItem('@zapmart_wishlist', JSON.stringify(items));
-    } catch (e) {
-      console.error('Failed to persist wishlist state', e);
+  // Save wishlist whenever items change
+  useEffect(() => {
+    if (isInitiated.current) {
+      AsyncStorage.setItem('@zapmart_wishlist', JSON.stringify(state.items)).catch((e) => {
+        console.error('Failed to persist wishlist state', e);
+      });
     }
-  };
+  }, [state.items]);
 
-  const toggleWishlist = async (product: Product) => {
+  const toggleWishlist = useCallback(async (product: Product) => {
     dispatch({ type: 'TOGGLE_WISHLIST', payload: product });
-    const exists = state.items.some((item) => item.id === product.id);
-    let nextItems;
-    if (exists) {
-      nextItems = state.items.filter((item) => item.id !== product.id);
-    } else {
-      nextItems = [...state.items, product];
-    }
-    await saveWishlist(nextItems);
-  };
+  }, []);
 
-  const isInWishlist = (productId: string) => {
+  const isInWishlist = useCallback((productId: string) => {
     return state.items.some((item) => item.id === productId);
-  };
+  }, [state.items]);
+
+  const contextValue = useMemo(() => ({
+    state,
+    toggleWishlist,
+    isInWishlist,
+  }), [state, toggleWishlist, isInWishlist]);
 
   return (
-    <WishlistContext.Provider value={{ state, toggleWishlist, isInWishlist }}>
+    <WishlistContext.Provider value={contextValue}>
       {children}
     </WishlistContext.Provider>
   );
@@ -90,3 +92,4 @@ export function useWishlist() {
   }
   return context;
 }
+

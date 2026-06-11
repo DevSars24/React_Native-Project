@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Text, Pressable, Platform, Dimensions } from 'react-native';
 import Animated, { 
   FadeInUp, 
@@ -37,12 +37,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }, 3500);
   }, []);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  }, []);
+
+  const contextValue = useMemo(() => ({ showToast }), [showToast]);
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       
       {/* Toast Overlay Container */}

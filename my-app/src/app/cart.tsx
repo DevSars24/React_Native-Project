@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -30,11 +30,57 @@ export default function CartScreen() {
 
   const cartItems = cartState.items;
 
-  const handleCheckout = async () => {
+  const handleCheckout = useCallback(async () => {
     // Mock checkout success
     showToast('🎉 Order placed successfully! Thank you for shopping.', 'success');
     await clearCart();
-  };
+  }, [clearCart, showToast]);
+
+  const renderCartItem = useCallback(({ item, index }: { item: any; index: number }) => (
+    <Animated.View 
+      entering={FadeInDown.duration(350).delay(index * 40)}
+      style={[styles.itemCard, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}
+    >
+      <View style={[styles.itemAvatar, { backgroundColor: theme.background }]}>
+        <Text style={styles.itemEmoji}>{item.product.emoji}</Text>
+      </View>
+      
+      <View style={styles.itemInfo}>
+        <Text style={[styles.itemName, { color: theme.text }]} numberOfLines={1}>
+          {item.product.name}
+        </Text>
+        <Text style={[styles.itemPrice, { color: theme.textSecondary }]}>
+          Rs. {item.product.price}
+        </Text>
+      </View>
+
+      {/* Quantity Controls */}
+      <View style={styles.controlsRow}>
+        <TouchableOpacity 
+          style={[styles.qtyBtn, { backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+          onPress={() => updateQuantity(item.product.id, item.quantity - 1)}
+        >
+          <Text style={[styles.qtyBtnText, { color: theme.text }]}>-</Text>
+        </TouchableOpacity>
+        
+        <Text style={[styles.qtyText, { color: theme.text }]}>{item.quantity}</Text>
+        
+        <TouchableOpacity 
+          style={[styles.qtyBtn, { backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+          onPress={() => updateQuantity(item.product.id, item.quantity + 1)}
+        >
+          <Text style={[styles.qtyBtnText, { color: theme.text }]}>+</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.deleteBtn}
+          onPress={() => removeFromCart(item.product.id)}
+        >
+          <Text style={styles.deleteBtnText}>🗑️</Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  ), [theme, updateQuantity, removeFromCart]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -73,51 +119,7 @@ export default function CartScreen() {
           <FlatList
             data={cartItems}
             keyExtractor={(item) => item.product.id}
-            renderItem={({ item, index }) => (
-              <Animated.View 
-                entering={FadeInDown.duration(350).delay(index * 40)}
-                style={[styles.itemCard, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}
-              >
-                <View style={[styles.itemAvatar, { backgroundColor: theme.background }]}>
-                  <Text style={styles.itemEmoji}>{item.product.emoji}</Text>
-                </View>
-                
-                <View style={styles.itemInfo}>
-                  <Text style={[styles.itemName, { color: theme.text }]} numberOfLines={1}>
-                    {item.product.name}
-                  </Text>
-                  <Text style={[styles.itemPrice, { color: theme.textSecondary }]}>
-                    Rs. {item.product.price}
-                  </Text>
-                </View>
-
-                {/* Quantity Controls */}
-                <View style={styles.controlsRow}>
-                  <TouchableOpacity 
-                    style={[styles.qtyBtn, { backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                    onPress={() => updateQuantity(item.product.id, item.quantity - 1)}
-                  >
-                    <Text style={[styles.qtyBtnText, { color: theme.text }]}>-</Text>
-                  </TouchableOpacity>
-                  
-                  <Text style={[styles.qtyText, { color: theme.text }]}>{item.quantity}</Text>
-                  
-                  <TouchableOpacity 
-                    style={[styles.qtyBtn, { backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                    onPress={() => updateQuantity(item.product.id, item.quantity + 1)}
-                  >
-                    <Text style={[styles.qtyBtnText, { color: theme.text }]}>+</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity 
-                    style={styles.deleteBtn}
-                    onPress={() => removeFromCart(item.product.id)}
-                  >
-                    <Text style={styles.deleteBtnText}>🗑️</Text>
-                  </TouchableOpacity>
-                </View>
-              </Animated.View>
-            )}
+            renderItem={renderCartItem}
             contentContainerStyle={styles.listContent}
           />
 

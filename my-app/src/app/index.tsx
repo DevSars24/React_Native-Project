@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -120,9 +120,13 @@ export default function ZapMartScreen() {
     return list;
   }, [products, searchText, filters]);
 
-  const handleApplyFilters = (newFilters: FilterState) => {
+  const handleApplyFilters = useCallback((newFilters: FilterState) => {
     setFilters(newFilters);
-  };
+  }, []);
+
+  const renderProduct = useCallback(({ item, index }: { item: Product; index: number }) => (
+    <ProductCard product={item} index={index} />
+  ), []);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -181,9 +185,7 @@ export default function ZapMartScreen() {
         <FlatList
           data={processedProducts}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <ProductCard product={item} index={index} />
-          )}
+          renderItem={renderProduct}
           contentContainerStyle={styles.productList}
           initialNumToRender={6}
           maxToRenderPerBatch={10}

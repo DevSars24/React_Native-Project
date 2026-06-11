@@ -11,27 +11,46 @@ export function useNotifications() {
   const notificationsEnabled = authState.user?.notificationsEnabled ?? true;
   const wishlistItems = wishlistState.items;
 
-  const promoTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const priceChangeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const promoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const priceChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const wishlistItemsRef = useRef(wishlistItems);
+
+  // Keep ref up to date
   useEffect(() => {
-    // If notifications are disabled or user is not logged in, clear timers and return
+    wishlistItemsRef.current = wishlistItems;
+  }, [wishlistItems]);
+
+  // 1. Promotional code notification effect
+  useEffect(() => {
     if (!notificationsEnabled || !authState.user) {
       if (promoTimerRef.current) clearTimeout(promoTimerRef.current);
-      if (priceChangeTimerRef.current) clearTimeout(priceChangeTimerRef.current);
       return;
     }
 
-    // 1. Simulate Daily Promotional Notification after 20 seconds
     promoTimerRef.current = setTimeout(() => {
       showToast('🎁 Promo Code: Use ZAP50 at checkout for 50% discount!', 'info');
     }, 20000);
 
-    // 2. Simulate Wishlist Item Price Change after 12 seconds
+    return () => {
+      if (promoTimerRef.current) clearTimeout(promoTimerRef.current);
+    };
+  }, [notificationsEnabled, authState.user, showToast]);
+
+  const hasWishlistItems = wishlistItems.length > 0;
+
+  // 2. Wishlist price change notification effect
+  useEffect(() => {
+    if (!notificationsEnabled || !authState.user || !hasWishlistItems) {
+      if (priceChangeTimerRef.current) clearTimeout(priceChangeTimerRef.current);
+      return;
+    }
+
     priceChangeTimerRef.current = setTimeout(() => {
-      if (wishlistItems.length > 0) {
+      const items = wishlistItemsRef.current;
+      if (items.length > 0) {
         // Pick a random item from wishlist
-        const randomItem = wishlistItems[Math.floor(Math.random() * wishlistItems.length)];
+        const randomItem = items[Math.floor(Math.random() * items.length)];
         const discountedPrice = Math.round(randomItem.price * 0.85); // 15% discount
         showToast(
           `🔥 Price Drop: ${randomItem.emoji} ${randomItem.name} in your wishlist fell to Rs. ${discountedPrice}!`,
@@ -41,8 +60,8 @@ export function useNotifications() {
     }, 12000);
 
     return () => {
-      if (promoTimerRef.current) clearTimeout(promoTimerRef.current);
       if (priceChangeTimerRef.current) clearTimeout(priceChangeTimerRef.current);
     };
-  }, [notificationsEnabled, wishlistItems, authState.user]);
+  }, [notificationsEnabled, authState.user, hasWishlistItems, showToast]);
 }
+

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useReducer } from 'react';
+import React, { createContext, useContext, useEffect, useReducer, useRef, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CartAction, CartItem, CartState, Product } from '@/constants/types';
 
@@ -73,6 +73,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, initialState);
+  const isInitiated = useRef(false);
 
   // Load cart on app launch
   useEffect(() => {
@@ -84,92 +85,74 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         console.error('Failed to load cart state', e);
+      } finally {
+        isInitiated.current = true;
       }
     }
     loadCart();
   }, []);
 
-  // Helper to persist state
-  const saveCart = async (items: CartItem[]) => {
-    try {
-      await AsyncStorage.setItem('@zapmart_cart', JSON.stringify(items));
-    } catch (e) {
-      console.error('Failed to persist cart state', e);
+  // Save cart whenever items change
+  useEffect(() => {
+    if (isInitiated.current) {
+      AsyncStorage.setItem('@zapmart_cart', JSON.stringify(state.items)).catch((e) => {
+        console.error('Failed to persist cart state', e);
+      });
     }
-  };
+  }, [state.items]);
 
-  const addToCart = async (product: Product) => {
+  const addToCart = useCallback(async (product: Product) => {
     dispatch({ type: 'ADD_TO_CART', payload: product });
-    // Calculate next state to save correctly
-    const existingIndex = state.items.findIndex((item) => item.product.id === product.id);
-    let nextItems;
-    if (existingIndex > -1) {
-      nextItems = state.items.map((item, idx) =>
-        idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
-      );
-    } else {
-      nextItems = [...state.items, { product, quantity: 1 }];
-    }
-    await saveCart(nextItems);
-  };
+  }, []);
 
-  const removeFromCart = async (productId: string) => {
+  const removeFromCart = useCallback(async (productId: string) => {
     dispatch({ type: 'REMOVE_FROM_CART', payload: productId });
-    const nextItems = state.items.filter((item) => item.product.id !== productId);
-    await saveCart(nextItems);
-  };
+  }, []);
 
-  const updateQuantity = async (productId: string, quantity: number) => {
+  const updateQuantity = useCallback(async (productId: string, quantity: number) => {
     dispatch({ type: 'UPDATE_QUANTITY', payload: { productId, quantity } });
-    let nextItems;
-    if (quantity <= 0) {
-      nextItems = state.items.filter((item) => item.product.id !== productId);
-    } else {
-      nextItems = state.items.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
-      );
-    }
-    await saveCart(nextItems);
-  };
+  }, []);
 
-  const clearCart = async () => {
+  const clearCart = useCallback(async () => {
     dispatch({ type: 'CLEAR_CART' });
-    await saveCart([]);
-  };
+  }, []);
 
   // Calculate totals
-  const subtotal = state.items.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
-    0
-  );
-  
-  // Free delivery above 500 Rs, otherwise 40 Rs. No delivery fee if cart is empty.
-  const deliveryFee = subtotal === 0 ? 0 : subtotal > 500 ? 0 : 40;
-  
-  // Tax (5% GST)
-  const tax = Math.round(subtotal * 0.05 * 100) / 100;
-  
-  const grandTotal = subtotal + deliveryFee + tax;
-  const itemCount = state.items.reduce((sum, item) => sum + item.quantity, 0);
+  const totals = useMemo(() => {
+    const subtotal = state.items.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0
+    );
+    
+    // Free delivery above 500 Rs, otherwise 40 Rs. No delivery fee if cart is empty.
+    const deliveryFee = subtotal === 0 ? 0 : subtotal > 500 ? 0 : 40;
+    
+    // Tax (5% GST)
+    const tax = Math.round(subtotal * 0.05 * 100) / 100;
+    
+    const grandTotal = subtotal + deliveryFee + tax;
+    const itemCount = state.items.reduce((sum, item) => sum + item.quantity, 0);
 
-  const totals = {
-    subtotal,
-    deliveryFee,
-    tax,
-    grandTotal,
-    itemCount,
-  };
+    return {
+      subtotal,
+      deliveryFee,
+      tax,
+      grandTotal,
+      itemCount,
+    };
+  }, [state.items]);
+
+  const contextValue = useMemo(() => ({
+    state,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    totals,
+  }), [state, addToCart, removeFromCart, updateQuantity, clearCart, totals]);
 
   return (
-    <CartContext.Provider
-      value={{
-        state,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        totals,
-      }}>
+    <CartContext.Provider value={contextValue}>
       {children}
     </CartContext.Provider>
   );
@@ -182,3 +165,4 @@ export function useCart() {
   }
   return context;
 }
+

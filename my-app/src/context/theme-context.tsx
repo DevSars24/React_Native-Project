@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/theme';
@@ -7,8 +7,9 @@ import { ThemeMode } from '@/constants/types';
 interface ThemeContextType {
   themeMode: ThemeMode;
   toggleTheme: () => void;
-  colors: typeof Colors.light;
+  colors: typeof Colors.light | typeof Colors.dark;
 }
+
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
@@ -49,20 +50,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [systemScheme, isLoaded]);
 
-  const toggleTheme = async () => {
-    const nextTheme = themeMode === 'light' ? 'dark' : 'light';
-    setThemeMode(nextTheme);
-    try {
-      await AsyncStorage.setItem('@zapmart_theme', nextTheme);
-    } catch (e) {
-      console.error('Failed to save theme', e);
-    }
-  };
+  const toggleTheme = useCallback(async () => {
+    setThemeMode((prevMode) => {
+      const nextTheme = prevMode === 'light' ? 'dark' : 'light';
+      AsyncStorage.setItem('@zapmart_theme', nextTheme).catch((e) => {
+        console.error('Failed to save theme', e);
+      });
+      return nextTheme;
+    });
+  }, []);
 
   const colors = Colors[themeMode];
 
+  const contextValue = useMemo(() => ({
+    themeMode,
+    toggleTheme,
+    colors,
+  }), [themeMode, toggleTheme, colors]);
+
   return (
-    <ThemeContext.Provider value={{ themeMode, toggleTheme, colors }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );
@@ -75,3 +82,4 @@ export function useAppTheme() {
   }
   return context;
 }
+

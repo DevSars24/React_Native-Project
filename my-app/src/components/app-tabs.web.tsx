@@ -19,6 +19,7 @@ import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useCart } from '@/context/cart-context';
 import { useWishlist } from '@/context/wishlist-context';
 import { useTheme } from '@/hooks/use-theme';
+import { useAppTheme } from '@/context/theme-context';
 
 export default function AppTabs() {
   const { totals } = useCart();
@@ -38,13 +39,13 @@ export default function AppTabs() {
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Explore</TabButton>
           </TabTrigger>
-          <TabTrigger name="wishlist" href="/wishlist" asChild>
+          <TabTrigger name="wishlist" href={"/wishlist" as any} asChild>
             <TabButton badgeCount={wishlistCount}>Wishlist</TabButton>
           </TabTrigger>
-          <TabTrigger name="cart" href="/cart" asChild>
+          <TabTrigger name="cart" href={"/cart" as any} asChild>
             <TabButton badgeCount={cartCount}>Cart</TabButton>
           </TabTrigger>
-          <TabTrigger name="profile" href="/profile" asChild>
+          <TabTrigger name="profile" href={"/profile" as any} asChild>
             <TabButton>Profile</TabButton>
           </TabTrigger>
         </CustomTabList>
@@ -96,8 +97,7 @@ export function TabButton({ children, isFocused, badgeCount, ...props }: CustomT
 }
 
 export function CustomTabList(props: TabListProps) {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const { colors } = useAppTheme();
 
   return (
     <View {...props} style={styles.tabListContainer}>
