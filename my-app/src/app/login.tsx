@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -42,7 +42,7 @@ export default function LoginScreen() {
     transform: [{ scale: buttonScale.value }],
   }));
 
-  const validate = () => {
+  const validate = useCallback(() => {
     let valid = true;
     setEmailError('');
     setPasswordError('');
@@ -65,9 +65,9 @@ export default function LoginScreen() {
     }
 
     return valid;
-  };
+  }, [email, password]);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
     if (!validate()) return;
 
     setLoading(true);
@@ -79,15 +79,15 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [login, email, showToast, validate]);
 
-  const onPressIn = () => {
+  const onPressIn = useCallback(() => {
     buttonScale.value = withTiming(0.95, { duration: 100 });
-  };
+  }, [buttonScale]);
 
-  const onPressOut = () => {
+  const onPressOut = useCallback(() => {
     buttonScale.value = withTiming(1, { duration: 100 });
-  };
+  }, [buttonScale]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -206,7 +206,7 @@ export default function LoginScreen() {
             style={styles.footer}
           >
             <Text style={{ color: theme.textSecondary }}>Don't have an account? </Text>
-            <Pressable onPress={() => router.push('/signup')}>
+            <Pressable onPress={() => router.push('/signup' as any)}>
               <Text style={styles.signupLink}>Sign Up</Text>
             </Pressable>
           </Animated.View>

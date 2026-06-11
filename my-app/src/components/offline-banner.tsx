@@ -24,8 +24,6 @@ export function OfflineBanner({ isOffline, lastUpdated, onRetry }: OfflineBanner
     opacity: height.value > 0 ? 1 : 0,
   }));
 
-  if (!isOffline && height.value === 0) return null;
-
   return (
     <Animated.View style={[styles.banner, animatedStyle]}>
       <View style={styles.content}>

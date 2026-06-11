@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   Modal, 
   StyleSheet, 
@@ -44,7 +44,7 @@ export function FilterModal({ visible, onClose, onApply, currentFilters }: Filte
   const [rating, setRating] = useState(currentFilters.rating);
   const [sortBy, setSortBy] = useState(currentFilters.sortBy);
 
-  const handleApply = () => {
+  const handleApply = useCallback(() => {
     const min = parseFloat(minPrice) || 0;
     const max = parseFloat(maxPrice) || 1000;
     onApply({
@@ -55,15 +55,15 @@ export function FilterModal({ visible, onClose, onApply, currentFilters }: Filte
       sortBy,
     });
     onClose();
-  };
+  }, [category, minPrice, maxPrice, rating, sortBy, onApply, onClose]);
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setCategory('All');
     setMinPrice('0');
     setMaxPrice('1000');
     setRating(0);
     setSortBy('newest');
-  };
+  }, []);
 
   return (
     <Modal

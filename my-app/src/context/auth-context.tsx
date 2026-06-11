@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useReducer } from 'react';
+import React, { createContext, useContext, useEffect, useReducer, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthAction, AuthState, User } from '@/constants/types';
 
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadAuth();
   }, []);
 
-  const login = async (email: string, name = 'ZapMart User') => {
+  const login = useCallback(async (email: string, name = 'ZapMart User') => {
     dispatch({ type: 'SET_LOADING', payload: true });
     // Mock login delay
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -88,9 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: false });
       throw new Error('Failed to save auth state during login');
     }
-  };
+  }, []);
 
-  const signup = async (name: string, email: string) => {
+  const signup = useCallback(async (name: string, email: string) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     // Mock signup delay
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -110,9 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: false });
       throw new Error('Failed to save auth state during signup');
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
       await AsyncStorage.removeItem('@zapmart_auth');
@@ -121,9 +121,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: false });
       console.error('Failed to clear auth state during logout', e);
     }
-  };
+  }, []);
 
-  const updateProfile = async (fields: Partial<User>) => {
+  const updateProfile = useCallback(async (fields: Partial<User>) => {
     if (!state.user || !state.token) return;
 
     const updatedUser = { ...state.user, ...fields };
@@ -136,10 +136,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to update profile in AsyncStorage', e);
       throw new Error('Failed to update profile settings');
     }
-  };
+  }, [state.user, state.token]);
+
+  const contextValue = useMemo(() => ({
+    state,
+    login,
+    signup,
+    logout,
+    updateProfile,
+  }), [state, login, signup, logout, updateProfile]);
 
   return (
-    <AuthContext.Provider value={{ state, login, signup, logout, updateProfile }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
@@ -152,3 +160,4 @@ export function useAuth() {
   }
   return context;
 }
+
